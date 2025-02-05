@@ -74,6 +74,7 @@ class AOF_Woo_Additional_Order_Default_Filters {
 	}
 
 	function woaf_show_filters() {
+		global $wpdb;
 		$post_type = $this->woaf_sanitize_get_parameter( $_GET['post_type'] );
 		if (!isset($_GET['post_type']) || $post_type !='shop_order') {
 			return false;
@@ -142,11 +143,29 @@ class AOF_Woo_Additional_Order_Default_Filters {
 							$output .= '</div>';
 						endif;
 						if ( $filter['id'] == 'shipping_method' ) :
-							$output .= '<div class="order_block_wrapper">';
+							$table_name = $wpdb->prefix . 'woocommerce_shipping_table_rates';
+							$query = "SELECT rate_id, rate_label FROM $table_name";
+							$shipping_data = $wpdb->get_results($query, ARRAY_A);
+							if( ! empty( $shipping_data ) ):
+								$selected = ( isset($_GET['shipping_method_filter']) ) ? $this->woaf_sanitize_get_parameter($_GET['shipping_method_filter']) : '';
+								$output .= '<div class="order_block_wrapper">';
+								$output .= '<label for="payment_customer_filter">'.$filter["name"].'</label>';
+								$output .= '<select name="shipping_method_filter" id="shipping_method_filter">';
+									$output .= '<option value=""></option>';
+										foreach ($shipping_data as $shipping_mtd) {
+											$title     = $shipping_mtd['rate_label'];
+											$output .= '<option value="'.$title.'" '. selected( $selected, $title, false ) .'>'.$title.'</option>';
+										}
+								$output .= '</select>';
+								$output .= '</div>';
+							else:
+								$output .= '<div class="order_block_wrapper">';
 								$shipping_method_filter = (isset( $_GET['shipping_method_filter'] )) ? $this->woaf_sanitize_get_parameter($_GET['shipping_method_filter']) : '';
-							$output .= '<label for="shipping_method_filter">'.$filter["name"].'</label>';
-							$output .= '<input type="text" value="'.$shipping_method_filter.'" name="shipping_method_filter" id="shipping_method_filter">';
-							$output .= '</div>';
+								$output .= '<label for="shipping_method_filter">'.$filter["name"].'</label>';
+								$output .= '<input type="text" value="'.$shipping_method_filter.'" name="shipping_method_filter" id="shipping_method_filter">';
+								$output .= '</div>';
+							endif;
+
 						endif;
 						if ( $filter['id'] == 'customer_email' ) :
 							$output .= '<div class="order_block_wrapper">';
