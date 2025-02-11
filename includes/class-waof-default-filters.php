@@ -142,6 +142,13 @@ class AOF_Woo_Additional_Order_Default_Filters {
 							$output .= '</select>';
 							$output .= '</div>';
 						endif;
+						// if ( $filter['id'] == 'shipping_method' ) :
+						// 	$output .= '<div class="order_block_wrapper">';
+						// 		$shipping_method_filter = (isset( $_GET['shipping_method_filter'] )) ? $this->woaf_sanitize_get_parameter($_GET['shipping_method_filter']) : '';
+						// 	$output .= '<label for="shipping_method_filter">'.$filter["name"].'</label>';
+						// 	$output .= '<input type="text" value="'.$shipping_method_filter.'" name="shipping_method_filter" id="shipping_method_filter">';
+						// 	$output .= '</div>';
+						// endif;
 						if ( $filter['id'] == 'shipping_method' ) :
 							$table_name = $wpdb->prefix . 'woocommerce_shipping_table_rates';
 							$query = "SELECT rate_id, rate_label FROM $table_name";
@@ -154,7 +161,9 @@ class AOF_Woo_Additional_Order_Default_Filters {
 									$output .= '<option value=""></option>';
 										foreach ($shipping_data as $shipping_mtd) {
 											$title     = $shipping_mtd['rate_label'];
-											$output .= '<option value="'.$title.'" '. selected( $selected, $title, false ) .'>'.$title.'</option>';
+											$translated_string = apply_filters( 'wpml_translate_single_string', $title, 'woocommerce-table-rate-shipping', $title, 'ja' );
+											$conbined_title = $title.'|'.$translated_string;
+											$output .= '<option value="'. $conbined_title .'" '. selected( $selected, $conbined_title, false ) .'>'. esc_html( $title.' | '.$translated_string ) .'</option>';
 										}
 								$output .= '</select>';
 								$output .= '</div>';
@@ -379,11 +388,28 @@ class AOF_Woo_Additional_Order_Default_Filters {
 				}
 			}
 			if ( isset( $_GET['shipping_method_filter'] ) && !empty( $_GET['shipping_method_filter'] ) ) { // search by shipping
-				$filter  = trim( $this->woaf_sanitize_get_parameter($_GET['shipping_method_filter']) );
-				$filter  = str_replace(self::$filter_search, self::$filter_replace, $filter);
-				$filter  = $wpdb->_escape($filter);
-				$where  .= " AND $wpdb->posts.ID IN (SELECT ".$wpdb->prefix."woocommerce_order_items.order_id FROM ".$wpdb->prefix."woocommerce_order_items WHERE order_item_type = 'shipping' AND order_item_name REGEXP '" . $filter . "' )";
-			}
+				global $wpdb;
+			
+				$filters = explode('|', trim($this->woaf_sanitize_get_parameter($_GET['shipping_method_filter']))); // Split by comma
+				$escaped_filters = array_map( function( $filter ) use ( $wpdb ) {
+					$filter = trim($filter);
+					$filter = str_replace(self::$filter_search, self::$filter_replace, $filter);
+					return $wpdb->esc_like($filter); // Use esc_like for better handling of special characters
+				}, $filters );
+			
+				if (!empty($escaped_filters)) {
+					$filter_conditions = array_map(function ($filter) use ($wpdb) {
+						return "order_item_name LIKE '%" . $filter . "%'";
+					}, $escaped_filters);
+			
+					$where .= " AND $wpdb->posts.ID IN (
+						SELECT ".$wpdb->prefix."woocommerce_order_items.order_id 
+						FROM ".$wpdb->prefix."woocommerce_order_items 
+						WHERE order_item_type = 'shipping' 
+						AND (" . implode(' OR ', $filter_conditions) . ")
+					)";
+				}
+			}					
 			if ( isset( $_GET['payment_customer_filter'] ) && !empty( $_GET['payment_customer_filter'] ) ) { // search by payment method
 				$filter = trim( $this->woaf_sanitize_get_parameter($_GET['payment_customer_filter']) );
 				$filter = str_replace("*", "%", $filter);
